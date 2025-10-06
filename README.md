@@ -1,6 +1,6 @@
 # Lift Volume Planner
 
-A mobile-first web application that mirrors key functionality from training trackers like Liftoff, Strong, and Hevy while adding explicit weekly set-volume targets per muscle group. The interface is designed to run without a build step, making it easy to preview by opening `public/index.html` in any browser.
+A mobile-first web application that mirrors key functionality from training trackers like Liftoff, Strong, and Hevy while adding explicit weekly set-volume targets per muscle group. The interface is designed to run without a build step, making it easy to preview by opening `index.html` in any browser.
 
 ## Features
 
@@ -13,8 +13,7 @@ A mobile-first web application that mirrors key functionality from training trac
 ## Project Structure
 
 ```
-public/
-  index.html        # Entry point for the client-side application
+index.html        # Entry point for the client-side application
 src/
   app.js            # Application bootstrap and rendering logic
   data/
@@ -34,13 +33,24 @@ styles.css
 
 ## Running Locally
 
-Because the project does not rely on a bundler, you can open the `public/index.html` file directly in your browser. For a local development server with automatic reloading you can use Python's built-in HTTP server:
+Because the project does not rely on a bundler, you can open the `index.html` file directly in your browser. For a local development server with automatic reloading you can use Python's built-in HTTP server:
 
 ```bash
 python -m http.server 3000
 ```
 
-Then navigate to `http://localhost:3000/public/index.html`.
+Then navigate to `http://localhost:3000/index.html`.
+
+## Preparing for GitHub Pages
+
+To test the site live on GitHub Pages without a build step:
+
+1. Commit the latest changes to the `main` branch.
+2. In your repository settings, open **Pages** and select **Deploy from a branch**.
+3. Choose the `main` branch and set the folder to `/ (root)`.
+4. Save the settings — GitHub will serve `index.html`, the `src/` modules, and `styles.css` directly.
+
+Once the deployment finishes you can visit `https://<username>.github.io/<repo>/` to interact with the planner using the live exercise catalog.
 
 ## Exercise Catalog
 
