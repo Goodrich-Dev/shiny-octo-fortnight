@@ -1,9 +1,8 @@
 import { DEFAULT_MUSCLE_TARGETS } from "./data/muscleGroups.js";
-import { EXERCISES } from "./data/exercises.js";
+import { FALLBACK_EXERCISES, fetchExercisesFromApi } from "./data/exercises.js";
 import {
   accumulateSet,
   computeProgress,
-  createEmptyVolumeState,
   normalizeTargets,
   summarizeLogs,
 } from "./lib/volumeTracking.js";
@@ -18,28 +17,23 @@ const app = document.getElementById("app");
 
 const state = initializeState();
 render();
+loadExercises();
 
 function initializeState() {
   const stored = loadState();
-  if (!stored) {
-    return {
-      targets: DEFAULT_MUSCLE_TARGETS,
-      logs: [],
-      volume: createEmptyVolumeState(),
-    };
-  }
-
-  const targets = normalizeTargets(stored.targets);
-  const logs = stored.logs?.map((log) => ({
-    ...log,
-    exercise: EXERCISES.find((exercise) => exercise.id === log.exerciseId) ??
-      EXERCISES[0],
-  })) ?? [];
+  const targets = stored ? normalizeTargets(stored.targets) : DEFAULT_MUSCLE_TARGETS;
+  const rawLogs = stored?.logs ?? [];
+  const exercises = FALLBACK_EXERCISES;
+  const logs = decorateLogs(rawLogs, exercises);
 
   return {
     targets,
+    rawLogs,
     logs,
+    exercises,
     volume: summarizeLogs(logs, targets),
+    isLoadingExercises: true,
+    exerciseError: null,
   };
 }
 
@@ -109,8 +103,14 @@ function renderLogSection() {
   section.appendChild(
     WorkoutLogForm({
       onSubmit: handleLogSubmission,
+      exercises: state.exercises,
     })
   );
+
+  const status = renderExerciseStatus();
+  if (status) {
+    section.appendChild(status);
+  }
 
   if (state.logs.length) {
     const list = document.createElement("div");
@@ -148,8 +148,19 @@ function renderRecommendationsSection() {
   `;
 
   const progress = computeProgress(state.volume, state.targets);
-  const recs = buildRecommendations(progress, tallyLogsByExercise(state.logs));
+  const recs = buildRecommendations(
+    progress,
+    tallyLogsByExercise(state.logs),
+    state.exercises
+  );
   section.appendChild(RecommendationsList({ items: recs }));
+
+  if (state.isLoadingExercises || state.exerciseError) {
+    const status = renderExerciseStatus();
+    if (status) {
+      section.appendChild(status);
+    }
+  }
   return section;
 }
 
@@ -159,18 +170,13 @@ function handleTargetUpdate(muscleId, newTarget) {
   );
   persistState({
     targets: state.targets,
-    logs: state.logs.map((log) => ({
-      exerciseId: log.exercise.id,
-      sets: log.sets,
-      reps: log.reps,
-      performedAt: log.performedAt,
-    })),
+    logs: state.rawLogs,
   });
   render();
 }
 
 function handleLogSubmission(payload) {
-  const exercise = EXERCISES.find((item) => item.id === payload.exerciseId);
+  const exercise = resolveExerciseById(payload.exerciseId);
   if (!exercise) return;
 
   const logEntry = {
@@ -178,17 +184,85 @@ function handleLogSubmission(payload) {
     exercise,
   };
   state.logs.push(logEntry);
+  state.rawLogs.push({
+    exerciseId: payload.exerciseId,
+    sets: payload.sets,
+    reps: payload.reps,
+    performedAt: payload.performedAt,
+  });
   state.volume = accumulateSet(state.volume, exercise, payload.sets);
 
   persistState({
     targets: state.targets,
-    logs: state.logs.map((log) => ({
-      exerciseId: log.exercise.id,
-      sets: log.sets,
-      reps: log.reps,
-      performedAt: log.performedAt,
-    })),
+    logs: state.rawLogs,
   });
 
   render();
+}
+
+async function loadExercises() {
+  try {
+    const remoteExercises = await fetchExercisesFromApi();
+    state.exercises = mergeExerciseCatalog(remoteExercises, FALLBACK_EXERCISES);
+    state.exerciseError = null;
+  } catch (error) {
+    state.exerciseError = error?.message ?? "Failed to load exercises";
+  } finally {
+    state.isLoadingExercises = false;
+    state.logs = decorateLogs(state.rawLogs, state.exercises);
+    state.volume = summarizeLogs(state.logs, state.targets);
+    render();
+  }
+}
+
+function decorateLogs(rawLogs, exercises) {
+  return rawLogs.map((log) => {
+    const exercise = exercises.find((item) => item.id === log.exerciseId);
+    return {
+      ...log,
+      exercise:
+        exercise ?? {
+          id: log.exerciseId,
+          name: log.exerciseId,
+          modality: "Unknown",
+          type: "Unknown",
+          primaryMuscles: [],
+          secondaryMuscles: [],
+        },
+    };
+  });
+}
+
+function renderExerciseStatus() {
+  if (state.isLoadingExercises) {
+    const notice = document.createElement("p");
+    notice.className = "description";
+    notice.textContent = "Loading live exercise catalog…";
+    return notice;
+  }
+
+  if (state.exerciseError) {
+    const notice = document.createElement("p");
+    notice.className = "description";
+    notice.style.color = "#f8d7da";
+    notice.textContent = `Using offline catalog. ${state.exerciseError}`;
+    return notice;
+  }
+
+  return null;
+}
+
+function resolveExerciseById(exerciseId) {
+  return state.exercises.find((item) => item.id === exerciseId);
+}
+
+function mergeExerciseCatalog(remote, fallback) {
+  const map = new Map();
+  fallback.forEach((exercise) => {
+    map.set(exercise.id, exercise);
+  });
+  remote.forEach((exercise) => {
+    map.set(exercise.id, exercise);
+  });
+  return Array.from(map.values());
 }

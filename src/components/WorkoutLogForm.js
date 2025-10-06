@@ -1,17 +1,11 @@
-import { EXERCISES } from "../data/exercises.js";
-
-export function WorkoutLogForm({ onSubmit }) {
+export function WorkoutLogForm({ onSubmit, exercises = [] }) {
   const form = document.createElement("form");
   form.className = "log-form";
   form.innerHTML = `
     <label class="full-width">
       <span style="display:block;margin-bottom:0.35rem;font-size:0.85rem;color:rgba(255,255,255,0.6);">Exercise</span>
-      <select name="exercise" required>
-        ${EXERCISES.map(
-          (exercise) => `
-            <option value="${exercise.id}">${exercise.name}</option>
-          `
-        ).join("\n")}
+      <select name="exercise" required ${!exercises.length ? "disabled" : ""}>
+        ${renderExerciseOptions(exercises)}
       </select>
     </label>
     <label>
@@ -34,6 +28,9 @@ export function WorkoutLogForm({ onSubmit }) {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = new FormData(form);
+    if (!exercises.length) {
+      return;
+    }
     const payload = {
       exerciseId: data.get("exercise"),
       sets: Number(data.get("sets")),
@@ -48,6 +45,16 @@ export function WorkoutLogForm({ onSubmit }) {
   });
 
   return form;
+}
+
+function renderExerciseOptions(exercises) {
+  if (!exercises.length) {
+    return '<option disabled selected>No exercises available</option>';
+  }
+
+  return exercises
+    .map((exercise) => `<option value="${exercise.id}">${exercise.name}</option>`)
+    .join("\n");
 }
 
 function defaultTimestamp() {

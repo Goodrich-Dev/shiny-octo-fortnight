@@ -1,4 +1,44 @@
-export const EXERCISES = [
+const API_BASE_URL = "https://fitness-api-git-main-jigsawprophets-projects.vercel.app/api";
+
+const MUSCLE_ALIAS_ENTRIES = [
+  ["chest", "chest"],
+  ["pector", "chest"],
+  ["upper chest", "upperChest"],
+  ["shoulder", "shoulders"],
+  ["deltoid", "shoulders"],
+  ["rear delt", "rearDelts"],
+  ["posterior delt", "rearDelts"],
+  ["tricep", "triceps"],
+  ["lat", "verticalBack"],
+  ["latissimus", "verticalBack"],
+  ["pull-up", "verticalBack"],
+  ["pull down", "verticalBack"],
+  ["upper back", "horizontalBack"],
+  ["mid back", "horizontalBack"],
+  ["trap", "horizontalBack"],
+  ["trapezius", "horizontalBack"],
+  ["rhomboid", "horizontalBack"],
+  ["rear delt", "horizontalBack"],
+  ["glute", "glutes"],
+  ["hamstring", "hamstrings"],
+  ["bicep", "biceps"],
+  ["quadricep", "quads"],
+  ["quad", "quads"],
+  ["vastus", "quads"],
+  ["ab", "abs"],
+  ["core", "abs"],
+  ["erector", "lowerBack"],
+  ["lower back", "lowerBack"],
+  ["hip flex", "hipFlexors"],
+  ["forearm", "forearms"],
+  ["calf", "calves"],
+  ["gastrocnemius", "calves"],
+  ["soleus", "calves"],
+];
+
+let cachedExercises;
+
+export const FALLBACK_EXERCISES = [
   {
     id: "flat-bench-press",
     name: "Barbell Bench Press",
@@ -169,8 +209,139 @@ export const EXERCISES = [
   },
 ];
 
-export function findExercisesByMuscle(muscleId) {
-  return EXERCISES.filter((exercise) =>
+export async function fetchExercisesFromApi({ signal } = {}) {
+  if (cachedExercises) {
+    return cachedExercises;
+  }
+
+  const requestUrl = `${API_BASE_URL}/exercises?limit=500`;
+
+  const response = await fetch(requestUrl, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load exercises: ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const records = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+    ? payload.data
+    : [];
+
+  const normalized = normalizeExerciseRecords(records);
+
+  if (!normalized.length) {
+    throw new Error("Received empty exercise catalog");
+  }
+
+  cachedExercises = normalized;
+  return normalized;
+}
+
+export function mapExercisesById(exercises) {
+  return exercises.reduce((acc, exercise) => {
+    acc[exercise.id] = exercise;
+    return acc;
+  }, {});
+}
+
+export function findExercisesByMuscle(exercises, muscleId) {
+  return exercises.filter((exercise) =>
     [...exercise.primaryMuscles, ...exercise.secondaryMuscles].includes(muscleId)
   );
+}
+
+function normalizeExerciseRecords(records) {
+  return records
+    .map((record) => normalizeExerciseRecord(record))
+    .filter(Boolean);
+}
+
+function normalizeExerciseRecord(record) {
+  const name = record?.name ?? record?.exercise ?? record?.title;
+  if (!name) return null;
+
+  const id = String(record?.id ?? record?.slug ?? slugify(name));
+  const modality = record?.modality ?? record?.equipment ?? record?.tool ?? "Unknown";
+  const type = record?.type ?? record?.category ?? record?.style ?? "Unknown";
+
+  const primary = dedupe(
+    normalizeMuscles(
+      collectMuscleNames(record, [
+        "primaryMuscles",
+        "primary_muscles",
+        "primeMovers",
+        "targetMuscles",
+        "agonists",
+      ])
+    )
+  );
+
+  const secondary = dedupe(
+    normalizeMuscles(
+      collectMuscleNames(record, [
+        "secondaryMuscles",
+        "secondary_muscles",
+        "synergists",
+        "stabilizers",
+        "supportMuscles",
+      ])
+    )
+  ).filter((muscle) => !primary.includes(muscle));
+
+  if (!primary.length && !secondary.length) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    modality,
+    type,
+    primaryMuscles: primary,
+    secondaryMuscles: secondary,
+  };
+}
+
+function collectMuscleNames(record, keys) {
+  return keys
+    .flatMap((key) => {
+      const value = record?.[key];
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") return value.split(/[,/]/);
+      return [];
+    })
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+}
+
+function normalizeMuscles(names) {
+  return names
+    .map((name) => {
+      const normalized = normalizeMuscleName(name);
+      return normalized ? normalized : null;
+    })
+    .filter(Boolean);
+}
+
+function normalizeMuscleName(value) {
+  const lower = value.toLowerCase();
+  for (const [alias, target] of MUSCLE_ALIAS_ENTRIES) {
+    if (lower.includes(alias)) {
+      return target;
+    }
+  }
+  return null;
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+}
+
+function dedupe(items) {
+  return [...new Set(items)];
 }

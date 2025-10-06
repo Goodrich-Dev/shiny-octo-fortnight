@@ -7,7 +7,7 @@ A mobile-first web application that mirrors key functionality from training trac
 - Configure weekly set goals for each tracked muscle group, including a vertical/horizontal back split.
 - Log workouts with automatic volume accumulation (primary muscles count as 1.0 set, secondary muscles as 0.5).
 - Visualize progress toward each goal with responsive progress bars optimized for phone screens.
-- Receive exercise recommendations when a muscle group falls below 90% of its target volume.
+- Receive exercise recommendations when a muscle group falls below 90% of its target volume, powered by the live catalog from [JigsawProphet/fitness-api](https://github.com/JigsawProphet/fitness-api) with an offline fallback.
 - Persistent storage using the browser's `localStorage` so your program and logs remain available between sessions.
 
 ## Project Structure
@@ -19,7 +19,7 @@ src/
   app.js            # Application bootstrap and rendering logic
   data/
     muscleGroups.js # Default muscle group definitions and metadata
-    exercises.js    # Exercise catalog with primary/secondary muscle mapping
+    exercises.js    # Exercise catalog fetcher and normalization helpers
   lib/
     volumeTracking.js    # Core accumulation and normalization helpers
     recommendations.js   # Gap analysis and exercise suggestion engine
@@ -42,8 +42,11 @@ python -m http.server 3000
 
 Then navigate to `http://localhost:3000/public/index.html`.
 
+## Exercise Catalog
+
+When the application loads it requests up to 500 exercises from the hosted `fitness-api` deployment and normalizes muscle group labels to match the planner's vertical/horizontal back split. If the request fails (for example, because the device is offline), the UI transparently falls back to a curated local catalog so workout logging continues to function. Once network access is restored the live catalog will automatically replace the offline list without losing previously logged workouts.
+
 ## Next Steps
 
-- Replace the static exercise catalog with live data from [JigsawProphet/fitness-api](https://github.com/JigsawProphet/fitness-api) once network access is configured.
 - Introduce user accounts and sync targets/logs to a backend service for multi-device support.
 - Expand the recommendation engine with muscle fatigue management and progression insights.
