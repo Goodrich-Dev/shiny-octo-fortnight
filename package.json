@@ -1,0 +1,15 @@
+{
+  "name": "lift-volume-planner",
+  "version": "0.1.0",
+  "description": "Mobile-first fitness volume tracker with manual muscle targets.",
+  "scripts": {
+    "start": "python -m http.server 3000"
+  },
+  "keywords": [
+    "fitness",
+    "volume",
+    "workout"
+  ],
+  "author": "",
+  "license": "MIT"
+}
